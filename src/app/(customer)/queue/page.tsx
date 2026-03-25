@@ -20,9 +20,8 @@ export default function LiveQueuePage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [joining, setJoining] = useState(false);
+  const [myQueueId, setMyQueueId] = useState<string | null>(null);
   
-  // For simplicity, using a hardcoded salonId. 
-  // In a real app, this would come from a slug or context.
   const salonId = 'salon-1'; 
 
   const fetchQueue = async () => {
@@ -40,7 +39,13 @@ export default function LiveQueuePage() {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchQueue();
+    
+    // Check localStorage for our spot
+    if (typeof window !== 'undefined') {
+      setMyQueueId(localStorage.getItem('myQueueId'));
+    }
 
     // Supabase Realtime Subscription
     const channel = supabase
@@ -51,6 +56,10 @@ export default function LiveQueuePage() {
         (payload) => {
           console.log('Realtime update:', payload);
           fetchQueue();
+          // If we were removed or something changed, we might need to verify our ID
+          if (typeof window !== 'undefined') {
+             setMyQueueId(localStorage.getItem('myQueueId'));
+          }
         }
       )
       .subscribe();
@@ -77,8 +86,8 @@ export default function LiveQueuePage() {
       if (!res.ok) throw new Error('Failed to join');
       
       const newEntry = await res.json();
-      // Store our ID in localStorage so we can highlight "Your spot"
       localStorage.setItem('myQueueId', newEntry.id);
+      setMyQueueId(newEntry.id); // Update state reactively
       
       setShowModal(false);
       setName('');
@@ -91,17 +100,18 @@ export default function LiveQueuePage() {
     }
   };
 
-  const myQueueId = typeof window !== 'undefined' ? localStorage.getItem('myQueueId') : null;
   const inServiceEntry = queue.find(entry => entry.status === 'in_service');
   const waitingEntries = queue.filter(entry => entry.status === 'waiting');
   
   // Calculate people ahead for "Your spot"
   const myEntry = queue.find(e => e.id === myQueueId);
-  const peopleAhead = myEntry ? queue.filter(e => e.position < myEntry.position && e.status !== 'done').length : null;
+  // People ahead = everyone whose position is lower and status is NOT done/removed
+  const peopleAhead = myEntry 
+    ? queue.filter(e => e.position < myEntry.position && (e.status === 'waiting' || e.status === 'in_service')).length 
+    : 0;
 
   return (
     <div className="min-h-screen pb-32 bg-surface text-on-surface">
-      {/* Top Navigation Bar */}
       <header className="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-outline-variant/10">
         <div className="flex justify-between items-center w-full px-6 py-3 h-16">
           <div className="flex items-center gap-4">
@@ -121,7 +131,6 @@ export default function LiveQueuePage() {
       </header>
 
       <main className="max-w-[640px] mx-auto px-6 pt-24 space-y-8">
-        {/* Salon Status Banner */}
         <section className="bg-surface-container-low p-8 rounded-2xl space-y-6">
           <div className="flex justify-between items-start">
             <div>
@@ -146,12 +155,13 @@ export default function LiveQueuePage() {
             </p>
             <div className="w-12 h-[2px] bg-primary/20 my-6"></div>
             <p className="text-sm text-on-surface-variant max-w-[280px] leading-relaxed font-medium">
-              Join the precision atelier's digital floor. We'll update you as your chair gets closer.
+              {myEntry 
+                ? `You're at position ${queue.indexOf(myEntry) + 1}. We'll notify you when it's almost your turn.` 
+                : "Join the precision atelier's digital floor. We'll update you as your chair gets closer."}
             </p>
           </div>
         </section>
 
-        {/* Queue List */}
         <section className="space-y-4">
           <div className="flex justify-between items-end mb-2">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Queue Order</h2>
@@ -210,7 +220,6 @@ export default function LiveQueuePage() {
           )}
         </section>
 
-        {/* Appointment Prompt */}
         {!myEntry && (
           <section className="pt-4">
             <Link href="/book" className="w-full py-4 px-6 rounded-2xl bg-surface-container-low border border-outline-variant/10 text-on-surface flex items-center justify-between hover:bg-surface-container-high transition-all group">
@@ -221,7 +230,6 @@ export default function LiveQueuePage() {
         )}
       </main>
 
-      {/* Sticky Bottom Join Queue CTA */}
       {!myEntry && (
         <div className="fixed bottom-0 left-0 w-full z-50 px-6 pb-8 pt-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-outline-variant/10">
           <div className="max-w-[640px] mx-auto">
@@ -236,7 +244,6 @@ export default function LiveQueuePage() {
         </div>
       )}
 
-      {/* Join Modal */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-surface w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-300">
