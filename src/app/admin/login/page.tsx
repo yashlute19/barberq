@@ -1,6 +1,36 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    } else {
+      router.push('/admin');
+      router.refresh();
+    }
+  };
+
   return (
     <div className="bg-surface text-on-surface overflow-hidden min-h-screen">
       <main className="flex min-h-screen">
@@ -84,7 +114,12 @@ export default function AdminLoginPage() {
               <p className="text-on-surface-variant font-medium">Access your barber dashboard to manage the floor.</p>
             </header>
 
-            <form className="space-y-6">
+            <form className="space-y-6" onSubmit={handleLogin}>
+              {error && (
+                <div className="p-4 rounded-xl bg-error/10 text-error text-sm font-medium border border-error/20">
+                  {error}
+                </div>
+              )}
               {/* Email Field */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold tracking-widest uppercase text-on-surface-variant ml-1" htmlFor="email">Staff Email Address</label>
@@ -92,7 +127,16 @@ export default function AdminLoginPage() {
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
                     <span className="material-symbols-outlined">mail</span>
                   </div>
-                  <input className="block w-full pl-12 pr-4 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" id="email" name="email" placeholder="barber@precisionatelier.com" type="email" />
+                  <input 
+                    className="block w-full pl-12 pr-4 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" 
+                    id="email" 
+                    name="email" 
+                    placeholder="barber@precisionatelier.com" 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
@@ -106,7 +150,16 @@ export default function AdminLoginPage() {
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
                     <span className="material-symbols-outlined">lock</span>
                   </div>
-                  <input className="block w-full pl-12 pr-12 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" id="password" name="password" placeholder="••••••••" type="password" />
+                  <input 
+                    className="block w-full pl-12 pr-12 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" 
+                    id="password" 
+                    name="password" 
+                    placeholder="••••••••" 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                   <button className="absolute inset-y-0 right-0 pr-4 flex items-center text-outline-variant hover:text-on-surface-variant transition-colors" type="button">
                     <span className="material-symbols-outlined">visibility</span>
                   </button>
@@ -128,10 +181,14 @@ export default function AdminLoginPage() {
 
               {/* Submit Button */}
               <div className="pt-4">
-                <Link href="/admin/dashboard" className="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-full transition-all shadow-lg shadow-primary/10 active:scale-[0.98] flex items-center justify-center space-x-2">
-                  <span>Sign In to Workspace</span>
-                  <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                </Link>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-full transition-all shadow-lg shadow-primary/10 active:scale-[0.98] flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>{loading ? 'Signing in...' : 'Sign In to Workspace'}</span>
+                  {!loading && <span className="material-symbols-outlined text-lg">arrow_forward</span>}
+                </button>
               </div>
             </form>
 

@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Salon {
+  id            String    @id @default(cuid())
+  name          String
+  phone         String?
+  address       String?
+  tagline       String?
+  isOpen        Boolean   @default(true)
+  maxQueueSize  Int       @default(10)
+  slotDuration  Int       @default(30) // minutes
+  createdAt     DateTime  @default(now())
+  barbers       Barber[]
+  bookings      Booking[]
+  queueEntries  QueueEntry[]
+}
+
+model Barber {
+  id          String    @id @default(cuid())
+  salonId     String
+  name        String
+  phone       String?
+  role        String    @default("barber") // barber | owner | admin
+  status      String    @default("available") // available | with_client | break | off
+  passwordHash String
+  createdAt   DateTime  @default(now())
+  salon       Salon     @relation(fields: [salonId], references: [id])
+  bookings    Booking[]
+  schedule    Schedule[]
+  queueEntries QueueEntry[]
+}
+
+model Schedule {
+  id        String  @id @default(cuid())
+  barberId  String
+  dayOfWeek Int     // 0=Sun, 1=Mon ... 6=Sat
+  startTime String  // "09:00"
+  endTime   String  // "20:00"
+  isDayOff  Boolean @default(false)
+  barber    Barber  @relation(fields: [barberId], references: [id])
+}
+
+model Booking {
+  id           String   @id @default(cuid())
+  salonId      String
+  barberId     String?
+  customerName String
+  customerPhone String
+  service      String
+  date         DateTime
+  timeSlot     String   // "10:30"
+  duration     Int      @default(30)
+  status       String   @default("pending") // pending | confirmed | in_progress | completed | cancelled
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  salon        Salon    @relation(fields: [salonId], references: [id])
+  barber       Barber?  @relation(fields: [barberId], references: [id])
+}
+
+model QueueEntry {
+  id           String   @id @default(cuid())
+  salonId      String
+  barberId     String?
+  customerName String?
+  customerPhone String?
+  position     Int
+  status       String   @default("waiting") // waiting | in_service | done | removed
+  joinedAt     DateTime @default(now())
+  servedAt     DateTime?
+  salon        Salon    @relation(fields: [salonId], references: [id])
+  barber       Barber?  @relation(fields: [barberId], references: [id])
+}
