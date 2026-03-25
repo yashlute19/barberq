@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-navy-600: #1E3A66;
+  --color-navy-700: #1A3057;
+  --color-navy-800: #132645;
+  --color-navy-900: #0B1E3D;
+  --color-teal-50: #F0FDFA;
+  --color-teal-100: #CCFBF1;
+  --color-teal-400: #14B8A6;
+  --color-teal-500: #0D9488;
+  --color-tertiary-container: #956e00;
+  --color-inverse-surface: #263143;
+  --color-tertiary-fixed: #ffdf9f;
+  --color-on-error-container: #93000a;
+  --color-on-surface: #111c2d;
+  --color-outline-variant: #bcc9c6;
+  --color-secondary-container: #b0cafe;
+  --color-outline: #6d7a77;
+  --color-on-surface-variant: #3d4947;
+  --color-tertiary: #765700;
+  --color-surface-variant: #d8e3fb;
+  --color-on-primary-fixed: #00201d;
+  --color-on-secondary: #ffffff;
+  --color-secondary: #445e8d;
+  --color-on-tertiary-fixed: #261a00;
+  --color-on-secondary-fixed: #001b3f;
+  --color-secondary-fixed: #d7e3ff;
+  --color-surface: #f9f9ff;
+  --color-on-primary-fixed-variant: #005049;
+  --color-inverse-on-surface: #ecf1ff;
+  --color-surface-container-high: #dee8ff;
+  --color-surface-tint: #006a61;
+  --color-error: #ba1a1a;
+  --color-on-tertiary: #ffffff;
+  --color-surface-container-low: #f0f3ff;
+  --color-background: #f9f9ff;
+  --color-on-error: #ffffff;
+  --color-on-secondary-fixed-variant: #2c4773;
+  --color-primary: #00685f;
+  --color-primary-fixed-dim: #6bd8cb;
+  --color-on-primary-container: #f4fffc;
+  --color-on-secondary-container: #3a5482;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-highest: #d8e3fb;
+  --color-surface-dim: #cfdaf2;
+  --color-surface-bright: #f9f9ff;
+  --color-on-tertiary-fixed-variant: #5c4300;
+  --color-inverse-primary: #6bd8cb;
+  --color-on-tertiary-container: #fffbff;
+  --color-tertiary-fixed-dim: #f9bd22;
+  --color-on-background: #111c2d;
+  --color-surface-container: #e7eeff;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #008378;
+  --color-primary-fixed: #89f5e7;
+  --color-error-container: #ffdad6;
+  --color-secondary-fixed-dim: #adc7fb;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: "Inter", sans-serif;
+  --font-headline: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
 }

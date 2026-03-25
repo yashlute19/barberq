@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# These must be present — never push these to GitHub
+.env
+.env.local
+.env.production
+.env*.local
 
 # vercel
 .vercel
