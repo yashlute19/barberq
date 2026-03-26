@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const waitingCount = entries.filter(e => e.status === 'waiting').length;
+    const waitingCount = entries.filter((e: any) => e.status === 'waiting').length;
 
     const stats = {
       totalWaiting: waitingCount,
