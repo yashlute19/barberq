@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     // Time format is HH:mm
     const bookedMinutes: Record<string, boolean> = {};
 
-    bookings.forEach(booking => {
+    bookings.forEach((booking: any) => {
          const t = parse(booking.timeSlot, 'HH:mm', reqDate);
          for (let step = 0; step < booking.duration; step += salon.slotDuration) {
              bookedMinutes[format(addMinutes(t, step), 'HH:mm')] = true;
