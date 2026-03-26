@@ -2,112 +2,52 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
-
-interface QueueEntry {
-  id: string;
-  customerName: string;
-  position: number;
-  status: string;
-  joinedAt: string;
-}
+import { useQueue } from '@/hooks/useQueue';
+import { Loader2 } from 'lucide-react';
 
 export default function LiveQueuePage() {
-  const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const salonId = process.env.NEXT_PUBLIC_SALON_ID!;
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [joining, setJoining] = useState(false);
   const [myQueueId, setMyQueueId] = useState<string | null>(null);
-  
-  const salonId = 'salon-1'; 
+  const [joinError, setJoinError] = useState<string | null>(null);
 
-  const fetchQueue = async () => {
-    try {
-      const res = await fetch(`/api/queue?salonId=${salonId}`);
-      if (!res.ok) throw new Error('Failed to fetch queue');
-      const data = await res.json();
-      setQueue(data);
-    } catch (err) {
-      setError('Could not load the queue.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { entries, stats, isLoading, addWalkIn } = useQueue(salonId);
 
   useEffect(() => {
-    // Initial fetch
-    fetchQueue();
-    
-    // Check localStorage for our spot
     if (typeof window !== 'undefined') {
-      setMyQueueId(localStorage.getItem('myQueueId'));
+      const stored = localStorage.getItem('myQueueId');
+      if (stored) setMyQueueId(stored);
     }
-
-    // Supabase Realtime Subscription
-    const channel = supabase
-      .channel('queue-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'QueueEntry' },
-        (payload) => {
-          console.log('Realtime update:', payload);
-          fetchQueue();
-          // If we were removed or something changed, we might need to verify our ID
-          if (typeof window !== 'undefined') {
-             setMyQueueId(localStorage.getItem('myQueueId'));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     setJoining(true);
+    setJoinError(null);
     try {
-      const res = await fetch('/api/queue/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          salonId,
-          customerName: name,
-          customerPhone: phone,
-        }),
-      });
-
-      if (!res.ok) throw new Error('Failed to join');
-      
-      const newEntry = await res.json();
+      const newEntry = await addWalkIn(name, phone);
       localStorage.setItem('myQueueId', newEntry.id);
-      setMyQueueId(newEntry.id); // Update state reactively
-      
+      setMyQueueId(newEntry.id);
       setShowModal(false);
       setName('');
       setPhone('');
-      fetchQueue();
-    } catch (err) {
-      alert('Error joining queue. Please try again.');
+    } catch (err: unknown) {
+      setJoinError(err instanceof Error ? err.message : 'Error joining queue. Please try again.');
     } finally {
       setJoining(false);
     }
   };
 
-  const inServiceEntry = queue.find(entry => entry.status === 'in_service');
-  const waitingEntries = queue.filter(entry => entry.status === 'waiting');
+  const waitingCount = stats?.totalWaiting || 0;
+  const estimatedWait = stats?.estimatedWaitMinutes || 0;
+  const inServiceEntries = entries.filter((e) => e.status === 'in_service');
   
-  // Calculate people ahead for "Your spot"
-  const myEntry = queue.find(e => e.id === myQueueId);
-  // People ahead = everyone whose position is lower and status is NOT done/removed
+  const myEntry = entries.find((e) => e.id === myQueueId);
   const peopleAhead = myEntry 
-    ? queue.filter(e => e.position < myEntry.position && (e.status === 'waiting' || e.status === 'in_service')).length 
+    ? entries.filter(e => e.position < myEntry.position && (e.status === 'waiting' || e.status === 'in_service')).length 
     : 0;
 
   return (
@@ -120,12 +60,9 @@ export default function LiveQueuePage() {
             </Link>
             <h1 className="text-xl font-bold tracking-tighter text-primary">Live Queue</h1>
           </div>
-          <div className="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Live</span>
+          <div className="flex items-center gap-2 bg-primary/5 px-4 py-1.5 rounded-full border border-primary/10">
+             <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-[pulse_1.5s_ease-in-out_infinite]"></div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Live Updates</span>
           </div>
         </div>
       </header>
@@ -136,19 +73,28 @@ export default function LiveQueuePage() {
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-70">Current Status</span>
               <div className="flex items-center gap-2 mt-1">
-                <span className="h-2 w-2 rounded-full bg-primary"></span>
-                <span className="text-sm font-bold text-on-surface">Open</span>
+                {stats?.isOpen ? (
+                   <>
+                    <span className="h-2 w-2 rounded-full bg-primary"></span>
+                    <span className="text-sm font-bold text-on-surface">Open for walk-ins</span>
+                   </>
+                ) : (
+                  <>
+                     <span className="h-2 w-2 rounded-full bg-error"></span>
+                     <span className="text-sm font-bold text-error">Closed</span>
+                  </>
+                )}
               </div>
             </div>
             <div className="text-right">
               <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-70">Estimated Wait</span>
-              <p className="text-lg font-black text-primary mt-1">~{waitingEntries.length * 20} min</p>
+              <p className="text-lg font-black text-primary mt-1">~{estimatedWait} min</p>
             </div>
           </div>
 
           <div className="flex flex-col items-center text-center py-4">
             <span className="text-7xl font-black text-primary tracking-tighter">
-              {myEntry ? peopleAhead : waitingEntries.length}
+              {myEntry ? peopleAhead : waitingCount}
             </span>
             <p className="text-on-surface-variant font-bold mt-2">
               {myEntry ? 'People ahead of you' : 'People in line'}
@@ -156,7 +102,7 @@ export default function LiveQueuePage() {
             <div className="w-12 h-[2px] bg-primary/20 my-6"></div>
             <p className="text-sm text-on-surface-variant max-w-[280px] leading-relaxed font-medium">
               {myEntry 
-                ? `You're at position ${queue.indexOf(myEntry) + 1}. We'll notify you when it's almost your turn.` 
+                ? `You're at position ${myEntry.position}. We'll notify you when it's almost your turn.` 
                 : "Join the precision atelier's digital floor. We'll update you as your chair gets closer."}
             </p>
           </div>
@@ -168,31 +114,37 @@ export default function LiveQueuePage() {
             <span className="text-[10px] font-bold text-on-surface-variant opacity-40">Auto-updates enabled</span>
           </div>
           
-          {loading ? (
-            <div className="py-10 text-center text-on-surface-variant animate-pulse font-bold">Loading live feed...</div>
+          {isLoading && entries.length === 0 ? (
+             <div className="py-10 flex flex-col items-center text-on-surface-variant text-sm font-bold">
+               <Loader2 className="w-6 h-6 animate-spin mb-2" />
+               <p>Loading live feed...</p>
+             </div>
           ) : (
             <div className="space-y-3">
-              {queue.length === 0 && (
+              {entries.length === 0 && (
                 <div className="bg-surface-container-low p-8 rounded-2xl text-center border-2 border-dashed border-outline-variant/20">
                   <p className="text-on-surface-variant font-bold">Queue is currently empty.</p>
                   <p className="text-xs text-on-surface-variant/60 mt-1">Be the first to join the atelier today!</p>
                 </div>
               )}
 
-              {queue.map((entry, index) => {
+              {entries.map((entry, index) => {
                 const isMe = entry.id === myQueueId;
                 const isInService = entry.status === 'in_service';
 
                 return (
                   <div 
                     key={entry.id} 
-                    className={`p-4 rounded-xl flex items-center justify-between transition-all duration-500 ${
+                    className={`block p-4 rounded-xl flex items-center justify-between transition-all duration-500 relative overflow-hidden ${
                       isMe 
-                        ? 'bg-primary/5 border-2 border-primary shadow-lg shadow-primary/5' 
+                        ? 'bg-primary/5 border border-primary shadow-sm shadow-primary/5' 
                         : 'bg-surface-container-lowest border border-outline-variant/10'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
+                    {isInService && (
+                       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#0D9488]"></div>
+                    )}
+                    <div className="flex items-center gap-4 relative z-10 pl-2">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm ${
                         isInService ? 'bg-primary text-white animate-pulse' : (isMe ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant')
                       }`}>
@@ -200,8 +152,9 @@ export default function LiveQueuePage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
+                           {/* Mask customer names */}
                           <p className={`font-bold ${isMe ? 'text-primary' : 'text-on-surface'}`}>
-                            {isMe ? 'Your spot' : (entry.customerName || `Guest #${entry.id.slice(-4)}`)}
+                            {isMe ? 'Your spot' : `Guest #${entry.id.slice(-4).toUpperCase()}`}
                           </p>
                           {isMe && <span className="bg-primary text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">YOU</span>}
                         </div>
@@ -210,7 +163,7 @@ export default function LiveQueuePage() {
                         </span>
                       </div>
                     </div>
-                    <span className={`material-symbols-outlined ${isInService ? 'text-primary animate-spin-slow' : 'text-on-surface-variant/20'}`}>
+                    <span className={`material-symbols-outlined relative z-10 ${isInService ? 'text-[#0D9488] animate-[spin_4s_linear_infinite]' : 'text-on-surface-variant/20'}`}>
                       {isInService ? 'content_cut' : 'hourglass_empty'}
                     </span>
                   </div>
@@ -230,7 +183,7 @@ export default function LiveQueuePage() {
         )}
       </main>
 
-      {!myEntry && (
+      {!myEntry && stats?.isOpen && (
         <div className="fixed bottom-0 left-0 w-full z-50 px-6 pb-8 pt-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-outline-variant/10">
           <div className="max-w-[640px] mx-auto">
             <button 
@@ -238,7 +191,7 @@ export default function LiveQueuePage() {
               className="w-full bg-primary hover:bg-primary-container text-white py-4 px-8 rounded-full font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-primary/20"
             >
               <span className="material-symbols-outlined">add_circle</span>
-              <span>Join the Precision Queue</span>
+              <span>Join the Queue Now</span>
             </button>
           </div>
         </div>
@@ -249,26 +202,30 @@ export default function LiveQueuePage() {
           <div className="bg-surface w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h2 className="text-2xl font-black tracking-tighter">Enter the Line</h2>
+                <h2 className="text-2xl font-black tracking-tighter">Join the line</h2>
                 <p className="text-sm text-on-surface-variant font-medium mt-1">Provide your details to claim your spot.</p>
               </div>
               <button 
                 onClick={() => setShowModal(false)}
                 className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                disabled={joining}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             <form onSubmit={handleJoinQueue} className="space-y-6">
+              {joinError && (
+                 <p className="p-3 bg-error/10 text-error rounded-xl text-sm font-medium border border-error/20">{joinError}</p>
+              )}
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant ml-1">Your Name</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant ml-1">Your Name (Optional)</label>
                 <input 
-                  required
                   className="w-full bg-surface-container-low border-0 rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                   placeholder="e.g. Julian Rossi"
                   value={name}
                   onChange={e => setName(e.target.value)}
+                  disabled={joining}
                 />
               </div>
               <div className="space-y-2">
@@ -279,6 +236,7 @@ export default function LiveQueuePage() {
                   type="tel"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
+                  disabled={joining}
                 />
               </div>
               
@@ -287,7 +245,7 @@ export default function LiveQueuePage() {
                 disabled={joining}
                 className="w-full bg-primary hover:bg-primary-container text-white py-4 rounded-full font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               >
-                {joining ? 'Adding you...' : 'Confirm My Spot'}
+                {joining ? <><Loader2 className="w-5 h-5 animate-spin" /> <span>Adding you...</span></> : 'Confirm My Spot'}
               </button>
             </form>
           </div>

@@ -1,94 +1,66 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
+import { useQueue } from '@/hooks/useQueue';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-
-interface QueueEntry {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  position: number;
-  status: string;
-  joinedAt: string;
-  barberId?: string;
-  barber?: { name: string };
-}
+import { Loader2 } from 'lucide-react';
 
 export default function AdminQueuePage() {
-  const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const salonId = 'salon-1'; // Hardcoded for this phase
+  const salonId = process.env.NEXT_PUBLIC_SALON_ID!;
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [barberId, setBarberId] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
-  const fetchQueue = async () => {
-    try {
-      const res = await fetch(`/api/queue?salonId=${salonId}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setQueue(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQueue();
-
-    const channel = supabase
-      .channel('admin-queue')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'QueueEntry' }, () => {
-        fetchQueue();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      await fetch(`/api/queue/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      fetchQueue();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // Note: We don't fetch barbers here specifically in Phase 2, but we could hook it up later.
+  
+  const { entries, stats, isLoading, updateStatus, addWalkIn, reorder, error } = useQueue(salonId);
 
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
-    const items = Array.from(queue);
+    const items = Array.from(entries);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
-    // Update positions locally
-    const updatedEntries = items.map((item, index) => ({
-      ...item,
+    const reorderedEntries = items.map((item, index) => ({
+      id: item.id,
       position: index + 1,
     }));
-    setQueue(updatedEntries);
 
-    // Sync with backend
+    // Optimistic UI update could be handled in store, but here we just call the API
+    await reorder(reorderedEntries);
+  };
+
+  const handleAddWalkIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAdding(true);
+    setAddError(null);
     try {
-      await fetch('/api/queue/reorder', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entries: updatedEntries.map(e => ({ id: e.id, position: e.position })),
-        }),
-      });
-    } catch (err) {
-      console.error('Reorder fail:', err);
-      fetchQueue(); // Revert on failure
+      await addWalkIn(name, phone, barberId || undefined);
+      setShowAddModal(false);
+      setName('');
+      setPhone('');
+      setBarberId('');
+    } catch (err: any) {
+      setAddError(err.message || 'Failed to add walk-in');
+    } finally {
+      setIsAdding(false);
     }
+  };
+
+  const handleRemove = (id: string) => {
+    if (window.confirm('Are you sure you want to remove this entry?')) {
+      updateStatus(id, 'removed');
+    }
+  };
+
+  const maskPhone = (phone: string | null) => {
+    if (!phone) return 'No phone';
+    if (phone.length < 10) return phone;
+    return `+91 ${phone.substring(0, 2)}***${phone.substring(phone.length - 4)}`;
   };
 
   return (
@@ -100,9 +72,13 @@ export default function AdminQueuePage() {
             <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
             Live
           </span>
+           {error && <span className="text-error text-sm font-bold bg-error/10 px-3 py-1 rounded-full">{error}</span>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-white hover:opacity-90 transition-all text-sm font-black shadow-lg shadow-primary/20">
+          <button 
+             onClick={() => setShowAddModal(true)}
+             className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-white hover:opacity-90 transition-all text-sm font-black shadow-lg shadow-primary/20"
+          >
             <span className="material-symbols-outlined text-[20px]">person_add</span>
             Add Walk-in
           </button>
@@ -111,9 +87,9 @@ export default function AdminQueuePage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         {[
-          { label: 'Waiting', value: queue.filter(e => e.status === 'waiting').length, unit: 'Clients' },
-          { label: 'In Service', value: queue.filter(e => e.status === 'in_service').length, unit: 'Active' },
-          { label: 'Total Volume', value: queue.length, unit: 'Today' },
+          { label: 'Waiting', value: stats?.totalWaiting || 0, unit: 'Clients' },
+          { label: 'Avg Wait (~)', value: stats?.estimatedWaitMinutes || 0, unit: 'Mins' },
+          { label: 'Total Active', value: entries.length, unit: 'Today' },
         ].map((stat, i) => (
           <div key={i} className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
             <p className="text-on-surface-variant text-[10px] font-black uppercase tracking-widest mb-1">{stat.label}</p>
@@ -140,16 +116,16 @@ export default function AdminQueuePage() {
             <Droppable droppableId="queue-table">
               {(provided) => (
                 <tbody {...provided.droppableProps} ref={provided.innerRef} className="divide-y divide-outline-variant/5">
-                  {loading ? (
+                  {(isLoading && entries.length === 0) ? (
                     <tr>
                       <td colSpan={5} className="py-20 text-center font-bold animate-pulse text-on-surface-variant">Loading Board...</td>
                     </tr>
-                  ) : queue.length === 0 ? (
+                  ) : entries.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-20 text-center font-bold text-on-surface-variant/40 italic">No entries in the active queue.</td>
                     </tr>
                   ) : (
-                    queue.map((entry, index) => (
+                    entries.map((entry, index) => (
                       <Draggable key={entry.id} draggableId={entry.id} index={index}>
                         {(provided, snapshot) => (
                           <tr 
@@ -166,7 +142,7 @@ export default function AdminQueuePage() {
                             <td className="px-6 py-5">
                               <div className="flex flex-col">
                                 <span className="text-sm font-bold">{entry.customerName || 'Anonymous'}</span>
-                                <span className="text-[11px] text-on-surface-variant font-medium opacity-60">{entry.customerPhone || 'No phone'}</span>
+                                <span className="text-[11px] text-on-surface-variant font-medium opacity-60">{maskPhone(entry.customerPhone)}</span>
                               </div>
                             </td>
                             <td className="px-6 py-5">
@@ -188,7 +164,7 @@ export default function AdminQueuePage() {
                                     <span className="material-symbols-outlined">check_circle</span>
                                   </button>
                                 )}
-                                <button onClick={() => updateStatus(entry.id, 'removed')} className="p-2 hover:bg-error/10 hover:text-error rounded-lg transition-colors" title="Remove">
+                                <button onClick={() => handleRemove(entry.id)} className="p-2 hover:bg-error/10 hover:text-error rounded-lg transition-colors" title="Remove">
                                   <span className="material-symbols-outlined">delete</span>
                                 </button>
                               </div>
@@ -205,6 +181,61 @@ export default function AdminQueuePage() {
           </table>
         </DragDropContext>
       </div>
+
+       {showAddModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-md rounded-3xl p-8 shadow-2xl">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-black tracking-tighter">Add Walk-in</h2>
+                <p className="text-sm text-on-surface-variant font-medium mt-1">Manual queue entry</p>
+              </div>
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                disabled={isAdding}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleAddWalkIn} className="space-y-6">
+              {addError && (
+                 <p className="p-3 bg-error/10 text-error rounded-xl text-sm font-medium border border-error/20">{addError}</p>
+              )}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant ml-1">Name (Optional)</label>
+                <input 
+                  className="w-full bg-surface-container-low border border-outline-variant/10 rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  placeholder="e.g. John Doe"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  disabled={isAdding}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant ml-1">Phone Number (Optional)</label>
+                <input 
+                  className="w-full bg-surface-container-low border border-outline-variant/10 rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  placeholder="+91 9800000000"
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  disabled={isAdding}
+                />
+              </div>
+              
+              <button 
+                type="submit"
+                disabled={isAdding}
+                className="w-full bg-primary hover:bg-primary-container text-white py-4 rounded-full font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isAdding ? <><Loader2 className="w-5 h-5 animate-spin" /> <span>Adding...</span></> : 'Confirm Entry'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,57 +1,44 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(request: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const salonId = searchParams.get('salonId')
-
+    const salonId = req.nextUrl.searchParams.get('salonId');
     if (!salonId) {
-      return NextResponse.json({ error: 'Salon ID is required' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'salonId is required' }, { status: 400 });
     }
 
-    const queue = await prisma.queueEntry.findMany({
+    const salon = await prisma.salon.findUnique({
+      where: { id: salonId },
+      select: { isOpen: true, slotDuration: true }
+    });
+
+    if (!salon) {
+      return NextResponse.json({ success: false, error: 'Salon not found' }, { status: 404 });
+    }
+
+    const entries = await prisma.queueEntry.findMany({
       where: {
         salonId,
-        status: { in: ['waiting', 'in_service'] },
+        status: { in: ['waiting', 'in_service'] }
       },
-      orderBy: {
-        position: 'asc',
-      },
+      orderBy: { position: 'asc' },
       include: {
-        barber: true,
-      },
-    })
+        barber: { select: { id: true, name: true, status: true } }
+      }
+    });
 
-    return NextResponse.json(queue)
+    const waitingCount = entries.filter(e => e.status === 'waiting').length;
+
+    const stats = {
+      totalWaiting: waitingCount,
+      estimatedWaitMinutes: waitingCount * salon.slotDuration,
+      isOpen: salon.isOpen
+    };
+
+    return NextResponse.json({ success: true, data: { entries, stats } }, { status: 200 });
   } catch (error) {
-    console.error('Queue Fetch Error:', error)
-    return NextResponse.json({ error: 'Failed to fetch queue' }, { status: 500 })
-  }
-}
-
-export async function PATCH(request: Request) {
-  try {
-    const body = await request.json()
-    const { entries } = body // Expected: [{ id: string, position: number }, ...]
-
-    if (!Array.isArray(entries)) {
-      return NextResponse.json({ error: 'Invalid entries format' }, { status: 400 })
-    }
-
-    // Transaction to update positions
-    await prisma.$transaction(
-      entries.map((entry) =>
-        prisma.queueEntry.update({
-          where: { id: entry.id },
-          data: { position: entry.position },
-        })
-      )
-    )
-
-    return NextResponse.json({ message: 'Queue reordered' })
-  } catch (error) {
-    console.error('Queue Reorder Error:', error)
-    return NextResponse.json({ error: 'Failed to reorder queue' }, { status: 500 })
+    console.error('[QUEUE_GET_ERROR]', error);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
