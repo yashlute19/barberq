@@ -6,7 +6,7 @@ import { useQueue } from '@/hooks/useQueue';
 import { Loader2 } from 'lucide-react';
 
 export default function LiveQueuePage() {
-  const salonId = process.env.NEXT_PUBLIC_SALON_ID!;
+  const salonId = process.env.NEXT_PUBLIC_SALON_ID || "";
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -14,7 +14,7 @@ export default function LiveQueuePage() {
   const [myQueueId, setMyQueueId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
 
-  const { entries, stats, isLoading, addWalkIn } = useQueue(salonId);
+  const { entries, stats, isLoading, addWalkIn } = useQueue(salonId || "");
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
