@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useBookingStore } from '@/store/booking-store';
 import { addMinutes, format } from 'date-fns';
@@ -10,8 +10,9 @@ import { Loader2 } from 'lucide-react';
 export default function BookingConfirmationPage({
   params,
 }: {
-  params: { bookingId: string };
+  params: Promise<{ bookingId: string }>;
 }) {
+  const { bookingId } = use(params);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const resetStore = useBookingStore((state) => state.reset);
@@ -21,7 +22,7 @@ export default function BookingConfirmationPage({
 
     const fetchBooking = async () => {
       try {
-        const res = await axios.get(`/api/bookings/${params.bookingId}`);
+        const res = await axios.get(`/api/bookings/${bookingId}`);
         if (res.data.success) {
           setBooking(res.data.data);
         }
@@ -32,7 +33,7 @@ export default function BookingConfirmationPage({
       }
     };
     fetchBooking();
-  }, [params.bookingId, resetStore]);
+  }, [bookingId, resetStore]);
 
   const handleDownloadICS = () => {
     if (!booking) return;

@@ -8,6 +8,7 @@ export function useQueue(salonId: string) {
   const store = useQueueStore()
 
   const fetchQueue = useCallback(async () => {
+    if (!salonId) return
     store.setLoading(true)
     store.setError(null)
     try {
@@ -24,16 +25,28 @@ export function useQueue(salonId: string) {
   }, [salonId, store.setEntries, store.setStats, store.setLoading, store.setError])
 
   useEffect(() => {
-    fetchQueue()
-    const channel = realtimeClient
-      .channel('queue-changes')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'QueueEntry', filter: `salonId=eq.${salonId}` },
-        () => fetchQueue()
-      )
-      .subscribe()
-    return () => { realtimeClient.removeChannel(channel) }
-  }, [salonId, fetchQueue])
+  if (!salonId) return
+
+  fetchQueue()
+
+  const channel = realtimeClient
+    .channel('queue-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'QueueEntry',
+        filter: `salonId=eq.${salonId}`,
+      },
+      () => fetchQueue()
+    )
+    .subscribe()
+
+  return () => {
+    realtimeClient.removeChannel(channel)
+  }
+}, [salonId, fetchQueue])
 
   const updateStatus = async (id: string, status: string, barberId?: string) => {
     try { await axios.patch(`/api/queue/${id}`, { status, barberId }) }
