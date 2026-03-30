@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'salonId required' }, { status: 400 });
     }
 
-    const todayStart = new Date();
+    // Build today's boundaries in IST (Asia/Kolkata) to match stored appointment dates
+    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const todayStart = new Date(nowIST);
     todayStart.setHours(0, 0, 0, 0);
-    
-    const todayEnd = new Date();
+    const todayEnd = new Date(nowIST);
     todayEnd.setHours(23, 59, 59, 999);
 
     // 1. Total Bookings Today
@@ -40,14 +41,14 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // 4. Upcoming Bookings
+    // 4. Upcoming Bookings — TODAY ONLY
     const upcomingBookings = await prisma.booking.findMany({
       where: {
         salonId,
-        date: { gte: new Date() }, // From now onwards
-        status: 'confirmed'
+        date: { gte: todayStart, lte: todayEnd }, // ← today's range, same as bookingsToday
+        status: { notIn: ['cancelled'] }           // ← show pending + confirmed both
       },
-      orderBy: { date: 'asc' },
+      orderBy: { timeSlot: 'asc' },               // ← sort by time slot, not date
       take: 4,
       include: { barber: { select: { name: true } } }
     });

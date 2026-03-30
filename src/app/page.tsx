@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LiveQueueCard from '@/components/customer/LiveQueueCard'
 
 export default function HomePage() {
   return (
@@ -46,40 +47,7 @@ export default function HomePage() {
             {/* Bento Style Queue & Stats Grid */}
             <div className="lg:col-span-5 grid grid-cols-1 gap-6">
               {/* Live Queue Preview Card */}
-              <div className="bg-surface-container-lowest rounded-3xl p-8 shadow-[0_40px_80px_-15px_rgba(0,104,95,0.08)] relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-6 opacity-10 scale-150 rotate-12 group-hover:rotate-0 transition-transform duration-700">
-                  <span className="material-symbols-outlined text-8xl" data-icon="hourglass_empty">hourglass_empty</span>
-                </div>
-                <div className="flex justify-between items-start mb-8 relative">
-                  <div>
-                    <span className="label-sm text-[11px] font-bold uppercase tracking-[0.15em] text-primary mb-2 block">Live Status</span>
-                    <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary" data-icon="schedule" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
-                      3 people waiting
-                    </h3>
-                  </div>
-                  <div className="bg-teal-50 rounded-full px-3 py-1 flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-teal-500 rounded-full animate-pulse"></span>
-                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider">Live</span>
-                  </div>
-                </div>
-
-                <div className="space-y-6 relative">
-                  <div>
-                    <div className="flex justify-between items-end mb-2">
-                      <span className="text-on-surface-variant text-sm font-medium">Estimated wait time</span>
-                      <span className="text-3xl font-black text-primary">~25 <span className="text-sm font-bold uppercase tracking-tighter">min</span></span>
-                    </div>
-                    <div className="w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full w-1/2"></div>
-                    </div>
-                    <div className="flex justify-between mt-2">
-                      <span className="text-[10px] font-bold text-outline uppercase tracking-widest">3 of 6 slots filled</span>
-                      <span className="text-[10px] font-medium text-outline italic">Updated 2 min ago</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <LiveQueueCard />
 
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

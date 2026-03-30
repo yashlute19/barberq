@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
+  const [rememberMe, setRememberMe] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,17 @@ export default function AdminLoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
+      // If "Remember me" is unchecked, move the Supabase session token from
+      // localStorage → sessionStorage so it is cleared when the browser closes.
+      if (!rememberMe) {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            const value = localStorage.getItem(key);
+            if (value) sessionStorage.setItem(key, value);
+            localStorage.removeItem(key);
+          }
+        });
+      }
       router.push('/admin/dashboard');
       router.refresh();
     }
@@ -39,7 +51,7 @@ export default function AdminLoginPage() {
           {/* Decorative Overlay */}
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=2070&auto=format&fit=crop')] opacity-10 mix-blend-overlay bg-cover bg-center"></div>
           <div className="absolute inset-0 bg-gradient-to-br from-secondary/80 to-on-secondary-fixed/90 z-0"></div>
-          
+
           <div className="relative z-10">
             <div className="flex items-center space-x-3 mb-16">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -47,7 +59,7 @@ export default function AdminLoginPage() {
               </div>
               <span className="text-2xl font-black tracking-widest uppercase">BarberQ</span>
             </div>
-            
+
             <div className="space-y-6">
               <h1 className="text-5xl font-extrabold tracking-tighter leading-tight">
                 Manage your queue.<br />
@@ -70,7 +82,7 @@ export default function AdminLoginPage() {
                   <p className="text-sm text-secondary-fixed/60">Real-time tracking of every chair and client.</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start space-x-4">
                 <div className="p-2 bg-white/10 rounded-lg">
                   <span className="material-symbols-outlined text-primary-fixed">calendar_today</span>
@@ -127,12 +139,12 @@ export default function AdminLoginPage() {
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
                     <span className="material-symbols-outlined">mail</span>
                   </div>
-                  <input 
-                    className="block w-full pl-12 pr-4 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" 
-                    id="email" 
-                    name="email" 
-                    placeholder="barber@precisionatelier.com" 
-                    type="email" 
+                  <input
+                    className="block w-full pl-12 pr-4 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all"
+                    id="email"
+                    name="email"
+                    placeholder="barber@precisionatelier.com"
+                    type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -144,18 +156,18 @@ export default function AdminLoginPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center px-1">
                   <label className="block text-xs font-bold tracking-widest uppercase text-on-surface-variant" htmlFor="password">Secure Password</label>
-                  <button type="button" className="text-xs font-bold text-primary hover:text-primary-container transition-colors tracking-tight">Forgot password?</button>
+                  <Link href="/admin/forgot-password" className="text-xs font-bold text-primary hover:text-primary-container transition-colors tracking-tight">Forgot password?</Link>
                 </div>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
                     <span className="material-symbols-outlined">lock</span>
                   </div>
-                  <input 
-                    className="block w-full pl-12 pr-12 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" 
-                    id="password" 
-                    name="password" 
-                    placeholder="••••••••" 
-                    type="password" 
+                  <input
+                    className="block w-full pl-12 pr-12 py-4 bg-surface-container-low border-none rounded-2xl text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all"
+                    id="password"
+                    name="password"
+                    placeholder="••••••••"
+                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -170,9 +182,14 @@ export default function AdminLoginPage() {
               <div className="flex items-center justify-between px-1">
                 <label className="flex items-center cursor-pointer group">
                   <div className="relative">
-                    <input className="sr-only" type="checkbox" />
+                    <input
+                      className="sr-only"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
                     <div className="w-5 h-5 bg-surface-container-high rounded border-none group-hover:bg-surface-container-highest transition-colors flex items-center justify-center">
-                      <span className="material-symbols-outlined text-primary text-sm hidden group-has-[:checked]:block">check</span>
+                      {rememberMe && <span className="material-symbols-outlined text-primary text-sm">check</span>}
                     </div>
                   </div>
                   <span className="ml-3 text-sm font-medium text-on-surface-variant">Remember me for 30 days</span>
@@ -181,8 +198,8 @@ export default function AdminLoginPage() {
 
               {/* Submit Button */}
               <div className="pt-4">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={loading}
                   className="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-full transition-all shadow-lg shadow-primary/10 active:scale-[0.98] flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
