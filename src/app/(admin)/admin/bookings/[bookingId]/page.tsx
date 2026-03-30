@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -8,7 +8,8 @@ import { Loader2 } from 'lucide-react';
 import { BookingStatus } from '@/types/booking';
 import { useRouter } from 'next/navigation';
 
-export default function BookingDetailPage({ params }: { params: { bookingId: string } }) {
+export default function BookingDetailPage({ params }: { params: Promise<{ bookingId: string }> }) {
+  const { bookingId } = use(params);
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -17,7 +18,7 @@ export default function BookingDetailPage({ params }: { params: { bookingId: str
   useEffect(() => {
     const fetchBooking = async () => {
       try {
-        const res = await axios.get(`/api/bookings/${params.bookingId}`);
+        const res = await axios.get(`/api/bookings/${bookingId}`);
         if (res.data.success) {
           setBooking(res.data.data);
         }
@@ -28,13 +29,13 @@ export default function BookingDetailPage({ params }: { params: { bookingId: str
       }
     };
     fetchBooking();
-  }, [params.bookingId]);
+  }, [bookingId]);
 
   const handleStatusUpdate = async (status: BookingStatus) => {
     if (!window.confirm(`Update booking status to ${status}?`)) return;
     setUpdating(true);
     try {
-      const res = await axios.patch(`/api/bookings/${params.bookingId}`, { status });
+      const res = await axios.patch(`/api/bookings/${bookingId}`, { status });
       if (res.data.success) {
         setBooking(res.data.data);
       }

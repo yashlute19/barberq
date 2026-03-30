@@ -27,9 +27,15 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Protect all /admin routes except /admin/login
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login') && !session) {
-    return NextResponse.redirect(new URL('/admin/login', request.url))
-  }
+  if (
+  pathname.startsWith('/admin') &&
+  !pathname.startsWith('/admin/login') &&
+  !pathname.startsWith('/admin/forgot-password') &&
+  !pathname.startsWith('/admin/reset-password') &&
+  !session
+) {
+  return NextResponse.redirect(new URL('/admin/login', request.url))
+}
 
   // NOTE: Automatic redirect from login to dashboard removed as per user request
   

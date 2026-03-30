@@ -17,6 +17,10 @@ const createBookingSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const todayEnd = new Date()
+  todayEnd.setHours(23, 59, 59, 999)
   try {
     const { searchParams } = new URL(req.url);
     const salonId = searchParams.get('salonId');
@@ -61,7 +65,14 @@ export async function GET(req: NextRequest) {
           barber: { select: { id: true, name: true } }
         }
       }),
-      prisma.booking.count({ where })
+      prisma.booking.count({ where: {
+    salonId,
+    date: {           // ← THIS is the fix — must be `date`, not `createdAt`
+      gte: todayStart,
+      lte: todayEnd,
+    },
+    status: { notIn: ['cancelled'] }
+  }, })
     ]).catch(err => {
       console.error('[BOOKINGS_PRISMA_ERROR]', err);
       throw new Error(`Database error: ${err.message}`);
